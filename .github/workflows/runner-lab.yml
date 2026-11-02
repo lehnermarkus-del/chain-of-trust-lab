@@ -1,0 +1,35 @@
+name: Disposable runner lab
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        type: choice
+        options: [observe, defend]
+        default: observe
+permissions:
+  contents: read
+jobs:
+  runner-lab:
+    if: github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, linux, chain-trust-lab]
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Observe clean source and runner-side execution
+        env:
+          LAB_MODE: ${{ inputs.mode }}
+        run: |
+          git status --porcelain
+          git show HEAD:app.py | sha256sum > /tmp/chain-trust-expected
+          before=$(sha256sum app.py | cut -d ' ' -f 1)
+          echo "SOURCE BEFORE: $before"
+          python3 app.py
+          after=$(sha256sum app.py | cut -d ' ' -f 1)
+          echo "SOURCE AFTER: $after"
+          if [ "$LAB_MODE" = defend ] && [ "$before" != "$after" ]; then
+            echo 'INTEGRITY DEFENSE: FAIL - runner modified checked-out source'
+            exit 1
+          fi
+          echo 'Training simulation finished; no deployment or signing performed.'
