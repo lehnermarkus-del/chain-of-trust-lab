@@ -1,0 +1,30 @@
+name: Dependency security
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  dependency-policy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          path: candidate
+          persist-credentials: false
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.base.sha || 'main' }}
+          path: trusted
+          persist-credentials: false
+      - name: Reject typos and unreviewed dependency changes before installation
+        run: python3 trusted/check_dependencies.py candidate/requirements.txt trusted/requirements.txt
+      - name: Install approved dependency artifacts
+        working-directory: candidate
+        run: |
+          python3 -m venv .venv
+          .venv/bin/python -m pip install --require-hashes --only-binary=:all: -r requirements.txt
+          .venv/bin/python app.py
+
